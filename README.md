@@ -59,11 +59,15 @@ Evaluate one example:
 uv run --project tools/example_eval example-eval evaluate --repo-root . --example handwritten
 ```
 
+Note: `--example` must match an example discovered from `examples/source/*` stems; unknown names now fail fast.
+
 Fail the command if any example falls below a threshold:
 
 ```bash
 uv run --project tools/example_eval example-eval evaluate --repo-root . --fail-under 0.90
 ```
+
+`--fail-under` must be within `[0, 1]`.
 
 Run tests:
 

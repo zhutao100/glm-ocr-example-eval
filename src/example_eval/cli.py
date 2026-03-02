@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import argparse
+import sys
 from pathlib import Path
 
+from .errors import ExampleEvalError
 from .evaluator import default_policy_path, evaluate_repo
 
 
@@ -44,13 +46,19 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     if args.command == "evaluate":
-        result = evaluate_repo(
-            args.repo_root,
-            policy_path=args.policy,
-            out_dir=args.out_dir,
-            examples=args.example,
-            fail_under=args.fail_under,
-        )
+        try:
+            result = evaluate_repo(
+                args.repo_root,
+                policy_path=args.policy,
+                out_dir=args.out_dir,
+                examples=args.example,
+                fail_under=args.fail_under,
+            )
+        except ExampleEvalError as exc:
+            print(str(exc), file=sys.stderr)
+            return 2
+        except KeyboardInterrupt:
+            return 130
         print(f"Wrote reports to: {result['out_dir']}")
         examples = result["examples"]
         for evaluation in examples:

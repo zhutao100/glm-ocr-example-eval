@@ -9,8 +9,15 @@ from .markdown_ir import normalize_text
 from .text_metrics import char_ngram_fscore, weighted_mean
 
 
-def _load_json(path: Path) -> Any:
-    return json.loads(path.read_text(encoding="utf-8"))
+def _load_json(path: Path) -> tuple[Any | None, str | None]:
+    try:
+        raw = path.read_text(encoding="utf-8")
+    except OSError as exc:
+        return None, f"failed to read json: {exc}"
+    try:
+        return json.loads(raw), None
+    except json.JSONDecodeError as exc:
+        return None, f"failed to parse json: {exc}"
 
 
 def _as_int(value: Any) -> int | None:
@@ -27,10 +34,19 @@ def score_json_structure(
     actual_path: Path, expected_path: Path, policy: dict[str, object]
 ) -> tuple[float | None, dict[str, object]]:
     if not actual_path.is_file() or not expected_path.is_file():
-        return None, {"available": False, "reason": "missing json baseline or result"}
+        missing: list[str] = []
+        if not actual_path.is_file():
+            missing.append(str(actual_path))
+        if not expected_path.is_file():
+            missing.append(str(expected_path))
+        return None, {"available": False, "reason": "missing json baseline or result: " + ", ".join(missing)}
 
-    actual = _load_json(actual_path)
-    expected = _load_json(expected_path)
+    actual, actual_error = _load_json(actual_path)
+    if actual_error is not None:
+        return None, {"available": False, "reason": actual_error, "path": str(actual_path)}
+    expected, expected_error = _load_json(expected_path)
+    if expected_error is not None:
+        return None, {"available": False, "reason": expected_error, "path": str(expected_path)}
     if not isinstance(actual, list) or not isinstance(expected, list):
         return None, {"available": False, "reason": "json roots are not page lists"}
 

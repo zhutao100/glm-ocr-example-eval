@@ -5,6 +5,7 @@ from dataclasses import asdict
 from pathlib import Path
 from typing import Any
 
+from .errors import ExampleEvalError
 from .json_metrics import score_json_structure
 from .markdown_ir import parse_markdown_document
 from .policy import load_policy
@@ -39,6 +40,9 @@ def discover_examples(repo_root: Path) -> list[ExamplePaths]:
     golden_root = repo_root / "examples" / "golden_result"
     rules_root = default_rules_root()
 
+    if not source_root.is_dir():
+        raise ExampleEvalError(f"Missing examples/source directory under repo root: {source_root}")
+
     supported = {".png", ".jpg", ".jpeg", ".pdf"}
     examples: list[ExamplePaths] = []
     for source_path in sorted(source_root.iterdir()):
@@ -62,7 +66,21 @@ def discover_examples(repo_root: Path) -> list[ExamplePaths]:
 def _read_text(path: Path) -> str | None:
     if not path.is_file():
         return None
-    return path.read_text(encoding="utf-8")
+    try:
+        return path.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError):
+        return None
+
+
+def _read_text_with_reason(path: Path) -> tuple[str | None, str | None]:
+    if not path.is_file():
+        return None, "missing"
+    try:
+        return path.read_text(encoding="utf-8"), None
+    except UnicodeDecodeError as exc:
+        return None, f"utf-8 decode error: {exc}"
+    except OSError as exc:
+        return None, f"read error: {exc}"
 
 
 def _rule_pass_rate(rule_results: list[Any]) -> float | None:
@@ -100,15 +118,15 @@ def _page_texts_from_json(path: Path) -> list[str] | None:
 def _score_pair(actual_dir: Path, expected_dir: Path, example_name: str, policy: dict[str, Any]) -> PairScore:
     actual_md_path = actual_dir / f"{example_name}.md"
     expected_md_path = expected_dir / f"{example_name}.md"
-    actual_md = _read_text(actual_md_path)
-    expected_md = _read_text(expected_md_path)
+    actual_md, actual_error = _read_text_with_reason(actual_md_path)
+    expected_md, expected_error = _read_text_with_reason(expected_md_path)
 
     if actual_md is None or expected_md is None:
         missing_parts = []
         if actual_md is None:
-            missing_parts.append(str(actual_md_path))
+            missing_parts.append(f"{actual_md_path} ({actual_error})")
         if expected_md is None:
-            missing_parts.append(str(expected_md_path))
+            missing_parts.append(f"{expected_md_path} ({expected_error})")
         return PairScore(
             available=False,
             overall=None,
@@ -117,8 +135,17 @@ def _score_pair(actual_dir: Path, expected_dir: Path, example_name: str, policy:
             missing_reason="missing markdown: " + ", ".join(missing_parts),
         )
 
-    actual_doc = parse_markdown_document(actual_md)
-    expected_doc = parse_markdown_document(expected_md)
+    try:
+        actual_doc = parse_markdown_document(actual_md)
+        expected_doc = parse_markdown_document(expected_md)
+    except Exception as exc:
+        return PairScore(
+            available=False,
+            overall=None,
+            dimensions={"text_fidelity": None, "critical_structure": None, "decorative_style": None},
+            details={},
+            missing_reason=f"failed to parse markdown: {exc}",
+        )
 
     text_fidelity, text_details = score_block_text_fidelity(
         actual_doc.non_table_blocks, expected_doc.non_table_blocks, policy
@@ -213,10 +240,24 @@ def evaluate_repo(
     fail_under: float | None = None,
 ) -> dict[str, Any]:
     repo_root = repo_root.resolve()
+    if not repo_root.is_dir():
+        raise ExampleEvalError(f"--repo-root must be a directory: {repo_root}")
+    if fail_under is not None and not (0.0 <= fail_under <= 1.0):
+        raise ExampleEvalError("--fail-under must be within [0, 1].")
     policy = load_policy(policy_path or default_policy_path())
     discovered = discover_examples(repo_root)
-    if examples:
-        selected = [example for example in discovered if example.name in set(examples)]
+    if not discovered:
+        raise ExampleEvalError(f"No examples discovered under: {repo_root / 'examples' / 'source'}")
+
+    requested = set(examples or [])
+    if requested:
+        discovered_names = {example.name for example in discovered}
+        unknown = sorted(requested - discovered_names)
+        if unknown:
+            known = ", ".join(sorted(discovered_names)[:10])
+            suffix = "" if len(discovered_names) <= 10 else f" (and {len(discovered_names) - 10} more)"
+            raise ExampleEvalError(f"Unknown example(s): {', '.join(unknown)}. Known examples include: {known}{suffix}")
+        selected = [example for example in discovered if example.name in requested]
     else:
         selected = discovered
 
