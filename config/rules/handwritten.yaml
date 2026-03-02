@@ -1,0 +1,7 @@
+example: handwritten
+checks:
+  - id: corrected_phrase
+    type: contains
+    must_contain: "人间的饭"
+    severity: warn
+    rationale: "Reward the corrected 人间 reading over the upstream 入间 error."

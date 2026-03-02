@@ -1,0 +1,41 @@
+example: GLM-4.5V_Pages_1_2_3
+checks:
+  - id: page1_start
+    type: page_start
+    page: 1
+    must_contain: "GLM-4.5V and GLM-4.1V-Thinking: Towards"
+    severity: warn
+  - id: page1_end
+    type: page_end
+    page: 1
+    must_contain: "model's performance"
+    alternatives:
+      - "model’s performance"
+    severity: warn
+  - id: page2_start
+    type: page_start
+    page: 2
+    must_contain: "1 Introduction"
+    severity: warn
+  - id: page2_end
+    type: page_end
+    page: 2
+    must_contain: "Therefore, we propose strategies including Reinforcement Learning with Curriculum"
+    severity: warn
+  - id: page3_start
+    type: page_start
+    page: 3
+    must_contain: "Sampling (RLCS) and dynamic sampling expansion"
+    severity: warn
+  - id: page3_end
+    type: page_end
+    page: 3
+    must_contain: "capabilities."
+    severity: warn
+  - id: page2_page3_continuation
+    type: continuation
+    left_page: 2
+    left_must_contain: "Reinforcement Learning with Curriculum"
+    right_page: 3
+    right_must_contain: "Sampling (RLCS) and dynamic sampling expansion"
+    severity: warn
