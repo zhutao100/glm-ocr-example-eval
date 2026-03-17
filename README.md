@@ -93,7 +93,10 @@ tools/example_eval/
     policy.yaml
     rules/
       GLM-4.5V_Pages_1_2_3.yaml
+      code.yaml
       handwritten.yaml
+      page.yaml
+      paper.yaml
   src/example_eval/
     cli.py
     evaluator.py
@@ -116,14 +119,19 @@ Controls:
 - scoring weights
 - table vs JSON structure weighting
 - golden adjudication strength
+- rule adjudication strength/weights
+- report thresholds (e.g., inflation warnings)
 - optional CI failure threshold
 
 ### `config/rules/*.yaml`
 
-Stores deterministic, example-specific checks. The starter repo already includes:
+Stores deterministic, example-specific checks (with severities like `minor`/`major`/`critical`). The repo currently includes:
 
 - `handwritten.yaml` to reward the corrected `人间` reading
 - `GLM-4.5V_Pages_1_2_3.yaml` to encode the verified page-boundary/continuation notes
+- `page.yaml` to anchor the `0.2\\mathrm{N} / \\mathrm{mm}^{2}` glue-strength constant/unit
+- `paper.yaml` to anchor fragile math/notation phrases (e.g., `not divisible by Q`, `\\nabla^2`)
+- `code.yaml` to anchor critical XML tags/identifiers (e.g., `local-jndi-name`, `weblogic-rdbms-bean`)
 
 ## Notes on implementation scope
 

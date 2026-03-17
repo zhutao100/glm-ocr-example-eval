@@ -26,31 +26,36 @@ From `config/policy.yaml` and `src/example_eval/evaluator.py`:
 
 Net: `final_overall` is an **upstream-parity score with a small golden correction**, not an absolute “OCR quality” score.
 
-### 2) Golden structural signal is currently missing for almost all examples
+### 2) Golden structural signal is limited (golden JSON is still missing), but no longer absent
 
-In both external repos’ `examples/golden_result/*/`, golden baselines are markdown-only (no `*.json`), so:
+In both external repos’ `examples/golden_result/*/`, golden baselines are markdown-only (no `*.json`), so the scorer still cannot compute golden `json_structure`.
 
-- `result_to_golden.dimensions.critical_structure` is `None` for every example except `table` (which can be scored via table IR).
-- Golden adjudication therefore cannot meaningfully affect `critical_structure`, and mostly only nudges `text_fidelity` (and tiny `decorative_style`).
+However, the scorer now derives a lightweight `markdown_structure` signature from the golden markdown and includes it in `critical_structure`, so:
 
-This is the largest reason `final_overall` can look “too high” while absolute golden quality is mediocre.
+- `result_to_golden.dimensions.critical_structure` is now available (via `markdown_structure`, plus table IR when present).
+- Golden adjudication can now nudge `critical_structure` based on markdown structure, but it remains less informative than having full golden JSON baselines.
 
-### 3) Example-specific rule coverage is currently narrow
+Parity-first inflation (high `final_overall` while `quality_overall` is low) still occurs whenever the upstream reference is itself far from golden.
 
-Only these starter rule files exist:
+### 3) Example-specific rule coverage now includes the fragile examples
 
-- `config/rules/handwritten.yaml`
+Rule files in this repo now include:
+
 - `config/rules/GLM-4.5V_Pages_1_2_3.yaml`
+- `config/rules/code.yaml`
+- `config/rules/handwritten.yaml`
+- `config/rules/page.yaml`
+- `config/rules/paper.yaml`
 
-The most fragile examples (`page`, `paper`, `code`) currently have no deterministic semantic guardrails.
+Rule severities support `minor`/`major`/`critical` (plus legacy `warn`/`error`), and the final-score rule adjustment is severity-weighted via `config/policy.yaml:rule_adjudication`.
 
 ## External results re-run (2026-03-17)
 
 ### Inputs (paths + commits)
 
-- Scorer repo: `~/workspace/vlm-ocr/glm-ocr-example-eval` @ `3b6e29ef3deec566580986b9ebe26bf8b51e46e1`
-- Project 1: `~/workspace/vlm-ocr/GLM-OCR-Swift` @ `cb0ceb1933434db858665f291b38141f8a712ada`
-- Project 2: `~/workspace/vlm-ocr/glm-ocr.swift` @ `c6eefd219dd9246976f406d04b530c8a7aef86f7`
+- Scorer repo: `~/workspace/vlm-ocr/glm-ocr-example-eval` @ `c404ee90cbd3de39b436e32ffbac031b606857b3`
+- Project 1: `~/workspace/vlm-ocr/GLM-OCR-Swift_dev` @ `2375d654e2f6158a2d97367c2158e2d25b4a4cdb`
+- Project 2: `~/workspace/vlm-ocr/glm-ocr.swift` @ `20c4fb0184085388e29f0bc4a680f7c0160c9b72`
 
 ### How to reproduce
 
@@ -59,7 +64,7 @@ From the scorer repo root:
 ```bash
 PYENV_VERSION=venv313 pyenv exec env PYTHONPATH=src \
   python3 -c "from example_eval.cli import main; raise SystemExit(main())" \
-  evaluate --repo-root ~/workspace/vlm-ocr/GLM-OCR-Swift
+  evaluate --repo-root ~/workspace/vlm-ocr/GLM-OCR-Swift_dev
 
 PYENV_VERSION=venv313 pyenv exec env PYTHONPATH=src \
   python3 -c "from example_eval.cli import main; raise SystemExit(main())" \
@@ -79,22 +84,22 @@ To match the intent in `evaluation_1.md`, we define a derived score:
 
 | Example | P1 parity | P1 quality | P1 final | P2 parity | P2 quality | P2 final | Δ quality (P2−P1) |
 |---|---:|---:|---:|---:|---:|---:|---:|
-| `GLM-4.5V_Page_1` | 0.7884 | 0.7884 | 0.7884 | 0.7723 | 0.7723 | 0.7723 | -0.0161 |
-| `GLM-4.5V_Pages_1_2_3` | 0.7954 | 0.7615 | 0.7816 | 0.7887 | 0.7501 | 0.7730 | -0.0114 |
-| `code` | 0.9017 | 0.7171 | 0.9013 | 0.9444 | 0.7202 | 0.9451 | +0.0031 |
-| `handwritten` | 0.8448 | 0.7855 | 0.8948 | 0.9873 | 0.8091 | 1.0000 | +0.0236 |
-| `page` | 0.7161 | 0.4735 | 0.7020 | 0.8030 | 0.5249 | 0.7973 | +0.0514 |
-| `paper` | 0.9636 | 0.6513 | 0.9636 | 0.9853 | 0.6511 | 0.9853 | -0.0002 |
-| `seal` | 0.9804 | 0.9808 | 0.9804 | 0.9894 | 0.9808 | 0.9894 | +0.0000 |
-| `table` | 0.9944 | 1.0000 | 0.9944 | 0.9987 | 1.0000 | 0.9987 | +0.0000 |
+| `GLM-4.5V_Page_1` | 0.9600 | 0.9115 | 0.9569 | 0.9224 | 0.8679 | 0.9067 | -0.0436 |
+| `GLM-4.5V_Pages_1_2_3` | 0.9494 | 0.8454 | 0.9440 | 0.9627 | 0.8463 | 0.9557 | 0.0009 |
+| `code` | 0.8985 | 0.8153 | 0.8708 | 0.9384 | 0.8382 | 0.9105 | 0.0229 |
+| `handwritten` | 0.9109 | 0.7842 | 0.9609 | 0.9875 | 0.8034 | 1.0000 | 0.0192 |
+| `page` | 0.7829 | 0.4486 | 0.7160 | 0.8836 | 0.4837 | 0.8254 | 0.0351 |
+| `paper` | 0.9629 | 0.7316 | 0.9329 | 0.9864 | 0.7326 | 0.9864 | 0.0010 |
+| `seal` | 0.9804 | 0.9875 | 0.9804 | 0.9894 | 0.9875 | 0.9894 | 0.0000 |
+| `table` | 0.9944 | 1.0000 | 0.9944 | 0.9987 | 1.0000 | 0.9987 | 0.0000 |
 
 ### Headline means (simple mean over 8 examples)
 
 | Metric | Project 1 | Project 2 |
 |---|---:|---:|
-| mean parity | 0.8731 | 0.9086 |
-| mean quality (derived) | 0.7698 | 0.7761 |
-| mean final | 0.8758 | 0.9076 |
+| mean parity | 0.9299 | 0.9586 |
+| mean quality_overall | 0.8155 | 0.8199 |
+| mean final | 0.9195 | 0.9466 |
 
 ### Cross-validation note: some numbers in `evaluation_1.md` are stale
 
@@ -106,28 +111,28 @@ The qualitative conclusions in both writeups largely match the current situation
 
 Current runs show large “inflation” (final − quality) on examples where upstream reference is also far from golden, e.g.:
 
-- `paper`: quality ≈ 0.651 while final ≈ 0.964–0.985
-- `page`: quality ≈ 0.474–0.525 while final ≈ 0.702–0.797
-- `code`: quality ≈ 0.717–0.720 while final ≈ 0.901–0.945
+- `paper`: quality ≈ 0.732 while final ≈ 0.933–0.986
+- `page`: quality ≈ 0.449–0.484 while final ≈ 0.716–0.825
+- `handwritten`: quality ≈ 0.784–0.803 while final ≈ 0.961–1.000
 
-This is expected under the parity-first design and is amplified by missing golden structural baselines.
+This is expected under the parity-first design; it is amplified when the upstream reference is also far from golden and golden structure is only partially observed (markdown-only golden baselines).
 
 ### 2) Project 2 wins on parity and slightly on golden-quality; Project 1 is slightly better on the long PDF cases
 
 On the current corpus:
 
-- Project 2 is substantially better on **parity** and slightly better on derived **quality** (mainly `page` and `handwritten`).
-- Project 1 is slightly better on the long PDF outputs (`GLM-4.5V_Page_1`, `GLM-4.5V_Pages_1_2_3`) under the available baselines.
+- Project 2 is substantially better on **parity** and slightly better on derived **quality** (mainly `page`, `handwritten`, and `code`).
+- Project 1 is better on `GLM-4.5V_Page_1`, while `GLM-4.5V_Pages_1_2_3` is effectively tied on derived quality.
 
-### 3) The scorer still under-penalizes “semantic” corruption in math/numerics/code
+### 3) The scorer now surfaces the key semantic failure modes, but `final_overall` remains parity-first
 
 Concrete external-output checks (current external repos):
 
-- `page`: Project 1 drops the key `0.2 N/mm^2`; Project 2 has a decimal but wrong unit/value (`0.5 MPa`).
-- `paper`: Project 1 has “not divisible by O” where golden has `Q`; Project 2 fixes this (but the aggregate score barely moves).
-- `code`: Project 2’s XML payload contains several more dangerous tag/identifier corruptions than Project 1, yet the scorer prefers Project 2 (parity/fidelity signals outweigh token-exactness).
+- `page`: both projects still miss the glue-strength constant `0.2\\mathrm{N} / \\mathrm{mm}^{2}` (rule failure; low `quality_overall`).
+- `paper`: Project 1 has “not divisible by O” where golden has `Q`; Project 2 fixes this (rule pass/fail is reflected in `final_overall` via rule adjudication).
+- `code`: both projects exhibit different XML-tag corruption patterns; rule failures now highlight these regressions, and the token-aware code scoring keeps `text_fidelity` from being overly optimistic.
 
-These are exactly the failure modes where lightweight char n-gram similarity needs help (rules and/or token-aware metrics).
+These are exactly the failure modes where lightweight char n-gram similarity benefits from deterministic rules and token-aware scoring.
 
 ## Consolidated improvement plan (minimal → structural)
 
@@ -225,3 +230,8 @@ Status / decisions (implemented in this repo):
   - `page` should strongly penalize key constant/unit corruption
   - `paper` should reflect Q vs O and basic LaTeX structure
 - Record end-to-end summary snapshots (parity/quality/final means) for the two external repos in this directory, with pinned commits and a short reproduce command.
+
+Status / decisions (implemented in this repo):
+
+- Added unit tests for semantic failure modes: `tests/test_semantic_fidelity.py`.
+- Recorded pinned external snapshots: `docs/scoring_quality_eval/snapshots/2026-03-17.md`.
