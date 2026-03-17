@@ -1,3 +1,5 @@
+> Note (2026-03-17): This is one of two parallel writeups. See `docs/scoring_quality_eval/consolidated.md` for the cross-validated analysis, updated numbers, and consolidated improvement plan.
+
 ## Projects
 
 - `project 1`: `~/workspace/vlm-ocr/GLM-OCR-Swift/examples`
