@@ -6,7 +6,7 @@ weights:
 critical_structure_components:
   table: 0.50
   json_structure: 0.35
-  block_shape: 0.15
+  markdown_structure: 0.15
 
 text_block_kind_weights:
   heading: 1.15
@@ -25,6 +25,11 @@ code_block_text_weights:
 golden_adjudication:
   strength: 0.25
   deadband: 0.02
+
+golden_aliases:
+  GLM-4.5V_Page_1:
+    name: GLM-4.5V_Pages_1_2_3
+    page: 1
 
 rule_adjudication:
   strength: 0.05

@@ -7,14 +7,14 @@ from typing import Any
 
 from .errors import ExampleEvalError
 from .json_metrics import score_json_structure
-from .markdown_ir import parse_markdown_document
+from .markdown_ir import parse_markdown_document, split_markdown_pages
 from .policy import load_policy
 from .report import write_reports
 from .rules import evaluate_rules, load_rules
 from .text_metrics import (
-    score_block_shape,
     score_block_text_fidelity,
     score_decorative_style,
+    score_markdown_structure,
     score_table_blocks,
     weighted_mean,
 )
@@ -115,9 +115,40 @@ def _page_texts_from_json(path: Path) -> list[str] | None:
     return page_texts
 
 
-def _score_pair(actual_dir: Path, expected_dir: Path, example_name: str, policy: dict[str, Any]) -> PairScore:
-    actual_md_path = actual_dir / f"{example_name}.md"
-    expected_md_path = expected_dir / f"{example_name}.md"
+def _resolve_golden_baseline(example: ExamplePaths, policy: dict[str, Any]) -> tuple[Path, str, int | None]:
+    aliases = policy.get("golden_aliases", {}) or {}
+    alias = aliases.get(example.name)
+    if alias is None:
+        return example.golden_dir, example.name, None
+    if isinstance(alias, str):
+        alias_name = alias
+        return example.golden_dir.parent / alias_name, alias_name, None
+    if isinstance(alias, dict):
+        alias_name = str(alias.get("name", "")).strip()
+        page = alias.get("page")
+        alias_page = int(page) if isinstance(page, int) else None
+        if alias_page is None and page is not None:
+            try:
+                alias_page = int(page)
+            except (TypeError, ValueError):
+                alias_page = None
+        if not alias_name:
+            return example.golden_dir, example.name, None
+        return example.golden_dir.parent / alias_name, alias_name, alias_page
+    return example.golden_dir, example.name, None
+
+
+def _score_pair(
+    actual_dir: Path,
+    expected_dir: Path,
+    actual_name: str,
+    expected_name: str,
+    policy: dict[str, Any],
+    *,
+    expected_markdown_page: int | None = None,
+) -> PairScore:
+    actual_md_path = actual_dir / f"{actual_name}.md"
+    expected_md_path = expected_dir / f"{expected_name}.md"
     actual_md, actual_error = _read_text_with_reason(actual_md_path)
     expected_md, expected_error = _read_text_with_reason(expected_md_path)
 
@@ -135,6 +166,20 @@ def _score_pair(actual_dir: Path, expected_dir: Path, example_name: str, policy:
             missing_reason="missing markdown: " + ", ".join(missing_parts),
         )
 
+    if expected_markdown_page is not None:
+        pages = split_markdown_pages(expected_md)
+        if expected_markdown_page <= 0 or expected_markdown_page > len(pages):
+            return PairScore(
+                available=False,
+                overall=None,
+                dimensions={"text_fidelity": None, "critical_structure": None, "decorative_style": None},
+                details={},
+                missing_reason=(
+                    f"golden alias page out of range: page={expected_markdown_page}, total_pages={len(pages)}"
+                ),
+            )
+        expected_md = pages[expected_markdown_page - 1]
+
     try:
         actual_doc = parse_markdown_document(actual_md)
         expected_doc = parse_markdown_document(expected_md)
@@ -151,22 +196,29 @@ def _score_pair(actual_dir: Path, expected_dir: Path, example_name: str, policy:
         actual_doc.non_table_blocks, expected_doc.non_table_blocks, policy
     )
     table_score, table_details = score_table_blocks(actual_doc.table_blocks, expected_doc.table_blocks)
-    block_shape = score_block_shape(actual_doc.blocks, expected_doc.blocks)
+    markdown_structure, markdown_structure_details = score_markdown_structure(
+        actual_md,
+        expected_md,
+        actual_doc.blocks,
+        expected_doc.blocks,
+    )
     decorative_style, style_details = score_decorative_style(actual_doc.blocks, expected_doc.blocks)
 
     json_score, json_details = score_json_structure(
-        actual_dir / f"{example_name}.json",
-        expected_dir / f"{example_name}.json",
+        actual_dir / f"{actual_name}.json",
+        expected_dir / f"{expected_name}.json",
         policy,
     )
 
     critical_weights = policy.get("critical_structure_components", {})
-    include_block_shape = table_score is not None or json_score is not None
+    markdown_structure_weight = float(
+        critical_weights.get("markdown_structure", critical_weights.get("block_shape", 0.15))
+    )
     critical_structure = weighted_mean(
         [
             (table_score, float(critical_weights.get("table", 0.50))),
             (json_score, float(critical_weights.get("json_structure", 0.35))),
-            (block_shape if include_block_shape else None, float(critical_weights.get("block_shape", 0.15))),
+            (markdown_structure, markdown_structure_weight),
         ]
     )
 
@@ -189,11 +241,16 @@ def _score_pair(actual_dir: Path, expected_dir: Path, example_name: str, policy:
         overall=overall,
         dimensions=dimensions,
         details={
+            "inputs": {
+                "actual_md": str(actual_md_path),
+                "expected_md": str(expected_md_path),
+                "expected_markdown_page": expected_markdown_page,
+            },
             "text": text_details,
             "tables": table_details,
             "json": json_details,
             "style": style_details,
-            "block_shape": block_shape,
+            "markdown_structure": markdown_structure_details,
         },
     )
 
@@ -263,9 +320,31 @@ def evaluate_repo(
 
     evaluations: list[ExampleEvaluation] = []
     for example in selected:
-        parity = _score_pair(example.result_dir, example.reference_dir, example.name, policy)
-        result_to_golden = _score_pair(example.result_dir, example.golden_dir, example.name, policy)
-        reference_to_golden = _score_pair(example.reference_dir, example.golden_dir, example.name, policy)
+        golden_dir, golden_name, golden_page = _resolve_golden_baseline(example, policy)
+
+        parity = _score_pair(
+            example.result_dir,
+            example.reference_dir,
+            example.name,
+            example.name,
+            policy,
+        )
+        result_to_golden = _score_pair(
+            example.result_dir,
+            golden_dir,
+            example.name,
+            golden_name,
+            policy,
+            expected_markdown_page=golden_page,
+        )
+        reference_to_golden = _score_pair(
+            example.reference_dir,
+            golden_dir,
+            example.name,
+            golden_name,
+            policy,
+            expected_markdown_page=golden_page,
+        )
 
         result_md = _read_text(example.result_dir / f"{example.name}.md") or ""
         result_page_texts = _page_texts_from_json(example.result_dir / f"{example.name}.json")

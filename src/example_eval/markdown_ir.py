@@ -202,3 +202,10 @@ def parse_markdown_document(text: str) -> DocumentIR:
 
 def join_block_text(blocks: Iterable[Block]) -> str:
     return "\n".join(block.canonical_text for block in blocks if block.canonical_text)
+
+
+def split_markdown_pages(text: str) -> list[str]:
+    text = text.replace("\r\n", "\n").replace("\r", "\n")
+    if "\f" in text:
+        return text.split("\f")
+    return text.split("\n---\n")

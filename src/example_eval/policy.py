@@ -17,7 +17,7 @@ DEFAULT_POLICY: dict[str, Any] = {
     "critical_structure_components": {
         "table": 0.50,
         "json_structure": 0.35,
-        "block_shape": 0.15,
+        "markdown_structure": 0.15,
     },
     "text_block_kind_weights": {
         "heading": 1.15,
@@ -37,6 +37,7 @@ DEFAULT_POLICY: dict[str, Any] = {
         "strength": 0.25,
         "deadband": 0.02,
     },
+    "golden_aliases": {},
     "rule_adjudication": {
         "strength": 0.05,
     },
@@ -82,6 +83,16 @@ def _require_number(value: Any, *, path: str) -> float:
     return as_float
 
 
+def _as_positive_int(value: Any) -> int | None:
+    if value is None or isinstance(value, bool):
+        return None
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError):
+        return None
+    return parsed if parsed > 0 else None
+
+
 def _validate_weight_mapping(policy: dict[str, Any], *, path: str) -> None:
     mapping = _require_mapping(policy.get(path, {}), path=path)
     weights = []
@@ -107,6 +118,24 @@ def _validate_policy(policy: dict[str, Any]) -> None:
     deadband = _require_number(golden.get("deadband", 0.02), path="golden_adjudication.deadband")
     if deadband < 0:
         raise ExampleEvalError("Policy field golden_adjudication.deadband must be non-negative.")
+
+    golden_aliases = policy.get("golden_aliases", {})
+    if golden_aliases is None:
+        golden_aliases = {}
+    aliases = _require_mapping(golden_aliases, path="golden_aliases")
+    for example_name, alias in aliases.items():
+        if isinstance(alias, str):
+            continue
+        if not isinstance(alias, dict):
+            raise ExampleEvalError(f"Policy field golden_aliases.{example_name} must be a string or mapping.")
+        target = alias.get("name")
+        if not isinstance(target, str) or not target:
+            raise ExampleEvalError(f"Policy field golden_aliases.{example_name}.name must be a non-empty string.")
+        page = alias.get("page")
+        if page is not None and _as_positive_int(page) is None:
+            raise ExampleEvalError(
+                f"Policy field golden_aliases.{example_name}.page must be a positive integer or null."
+            )
 
     rule_adj = _require_mapping(policy.get("rule_adjudication", {}), path="rule_adjudication")
     strength = _require_number(rule_adj.get("strength", 0.05), path="rule_adjudication.strength")

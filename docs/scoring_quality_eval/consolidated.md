@@ -163,6 +163,18 @@ Goal: make golden adjudication apply to more than just text similarity.
   - Derive a lightweight structure signature from markdown IR (block-kind sequence, heading levels, table count/shape, image count, formula blocks, page breaks).
   - Score it into `critical_structure` so `result_to_golden` and `reference_to_golden` get non-`None` structure values.
 
+Status / decisions (implemented in this repo):
+
+- Golden aliasing is config-driven via `config/policy.yaml:golden_aliases`.
+  - `GLM-4.5V_Page_1` uses `GLM-4.5V_Pages_1_2_3` golden, page `1` (split by `\f` or `\n---\n`).
+- `critical_structure_components.block_shape` is replaced by `critical_structure_components.markdown_structure`.
+  - `markdown_structure` is a lightweight signature score (continuous `[0, 1]`) combining:
+    - block-kind sequence similarity (with image-only lines treated as `image`, and HTML wrapper-only blocks ignored)
+    - heading level sequence similarity
+    - table shape sequence similarity
+    - image / formula / page-break count similarity
+  - component aggregation: simple mean over the sub-scores (equal weighting).
+
 ### Phase 2 — add semantic guardrails via rules (medium, high ROI)
 
 Goal: make regressions visible on “fragile” examples without heavy ML metrics.

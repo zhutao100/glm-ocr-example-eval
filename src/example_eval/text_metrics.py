@@ -1,10 +1,11 @@
 from __future__ import annotations
 
+import re
 from collections import Counter
 from itertools import zip_longest
 from typing import Iterable
 
-from .markdown_ir import normalize_text
+from .markdown_ir import normalize_text, split_markdown_pages
 from .types import Block, TableIR
 
 
@@ -191,6 +192,108 @@ def score_block_shape(actual: list[Block], expected: list[Block]) -> float:
     for actual_kind, expected_kind in zip_longest(actual_kinds, expected_kinds, fillvalue="<missing>"):
         pair_scores.append(1.0 if actual_kind == expected_kind else 0.0)
     return sum(pair_scores) / len(pair_scores)
+
+
+_MARKDOWN_IMAGE_RE = re.compile(r"!\[[^\]]*]\([^)]+\)")
+
+
+def _is_page_break_marker(line: str) -> bool:
+    stripped = line.strip()
+    return bool(re.fullmatch(r"(?:-{3,}|\*{3,}|_{3,})", stripped))
+
+
+def _is_image_only_line(line: str) -> bool:
+    stripped = line.strip()
+    return bool(re.fullmatch(r"!\[[^\]]*]\([^)]+\)", stripped))
+
+
+def _count_markdown_images(text: str) -> int:
+    return len(_MARKDOWN_IMAGE_RE.findall(text))
+
+
+def _count_similarity(a: int, b: int) -> float:
+    return clamp01(1.0 - (abs(a - b) / max(a, b, 1)))
+
+
+def score_markdown_structure(
+    actual_markdown: str,
+    expected_markdown: str,
+    actual_blocks: list[Block],
+    expected_blocks: list[Block],
+) -> tuple[float, dict[str, object]]:
+    def kind_sequence(blocks: list[Block]) -> list[str]:
+        sequence: list[str] = []
+        for block in blocks:
+            if block.kind == "paragraph" and not block.canonical_text:
+                continue
+            if block.kind == "paragraph":
+                if _is_page_break_marker(block.raw_text):
+                    continue
+                if _is_image_only_line(block.raw_text):
+                    sequence.append("image")
+                    continue
+            sequence.append(block.kind)
+        return sequence
+
+    kinds_a = kind_sequence(actual_blocks)
+    kinds_b = kind_sequence(expected_blocks)
+    headings_a = [int(block.meta.get("level", 0)) for block in actual_blocks if block.kind == "heading"]
+    headings_b = [int(block.meta.get("level", 0)) for block in expected_blocks if block.kind == "heading"]
+
+    table_shapes_a = [
+        (len(block.table.rows), max((len(row) for row in block.table.rows), default=0))
+        for block in actual_blocks
+        if block.kind == "table" and block.table is not None
+    ]
+    table_shapes_b = [
+        (len(block.table.rows), max((len(row) for row in block.table.rows), default=0))
+        for block in expected_blocks
+        if block.kind == "table" and block.table is not None
+    ]
+
+    image_count_a = _count_markdown_images(actual_markdown)
+    image_count_b = _count_markdown_images(expected_markdown)
+    formula_count_a = sum(1 for block in actual_blocks if block.kind == "formula")
+    formula_count_b = sum(1 for block in expected_blocks if block.kind == "formula")
+    page_breaks_a = max(0, len(split_markdown_pages(actual_markdown)) - 1)
+    page_breaks_b = max(0, len(split_markdown_pages(expected_markdown)) - 1)
+
+    import difflib
+
+    kind_score = difflib.SequenceMatcher(a=kinds_a, b=kinds_b).ratio() if kinds_a or kinds_b else 1.0
+    heading_score = difflib.SequenceMatcher(a=headings_a, b=headings_b).ratio() if headings_a or headings_b else 1.0
+    table_shape_score = (
+        difflib.SequenceMatcher(a=table_shapes_a, b=table_shapes_b).ratio() if table_shapes_a or table_shapes_b else 1.0
+    )
+
+    components = {
+        "kind_sequence": kind_score,
+        "heading_levels": heading_score,
+        "table_shape": table_shape_score,
+        "image_count": _count_similarity(image_count_a, image_count_b),
+        "formula_count": _count_similarity(formula_count_a, formula_count_b),
+        "page_break_count": _count_similarity(page_breaks_a, page_breaks_b),
+    }
+    overall = sum(components.values()) / len(components) if components else 1.0
+    return overall, {
+        "components": {name: round(score, 4) for name, score in components.items()},
+        "actual": {
+            "kind_count": len(kinds_a),
+            "heading_levels": headings_a,
+            "table_shapes": table_shapes_a,
+            "image_count": image_count_a,
+            "formula_count": formula_count_a,
+            "page_break_count": page_breaks_a,
+        },
+        "expected": {
+            "kind_count": len(kinds_b),
+            "heading_levels": headings_b,
+            "table_shapes": table_shapes_b,
+            "image_count": image_count_b,
+            "formula_count": formula_count_b,
+            "page_break_count": page_breaks_b,
+        },
+    }
 
 
 def score_decorative_style(actual: list[Block], expected: list[Block]) -> tuple[float | None, dict[str, object]]:

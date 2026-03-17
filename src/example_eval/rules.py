@@ -6,7 +6,7 @@ from typing import Any
 import yaml
 
 from .errors import ExampleEvalError
-from .markdown_ir import normalize_text
+from .markdown_ir import normalize_text, split_markdown_pages
 from .types import RuleCheckResult
 
 
@@ -28,12 +28,7 @@ def load_rules(path: Path | None) -> list[dict[str, Any]]:
 
 
 def page_segments_from_markdown(text: str) -> list[str]:
-    text = text.replace("\r\n", "\n").replace("\r", "\n")
-    if "\f" in text:
-        pages = text.split("\f")
-    else:
-        pages = text.split("\n---\n")
-    return [normalize_text(page) for page in pages]
+    return [normalize_text(page) for page in split_markdown_pages(text)]
 
 
 def _contains_any(text: str, phrases: list[str]) -> bool:
