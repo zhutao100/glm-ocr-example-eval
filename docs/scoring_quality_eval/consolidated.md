@@ -185,6 +185,16 @@ Goal: make regressions visible on “fragile” examples without heavy ML metric
   - `config/rules/code.yaml` (anchors like `WebLogic Workbook`, `<weblogic-rdbms-bean>`, `</key-cache-size>`)
 - Extend rule severities beyond `warn`/`error` (e.g., `minor`/`major`/`critical`) and wire severity into score impact.
 
+Status / decisions (implemented in this repo):
+
+- Added rule files:
+  - `config/rules/page.yaml`
+  - `config/rules/paper.yaml`
+  - `config/rules/code.yaml`
+- Rule severities now support: `minor`, `major`, `critical` (in addition to legacy `warn`/`error`).
+- Rule adjudication is now severity-weighted (config-driven via `rule_adjudication.severity_weights` in `config/policy.yaml`).
+  - CI/JUnit failure behavior remains unchanged: only `severity: error` fails the run.
+
 ### Phase 3 — metric upgrades (higher effort, but removes known mis-rankings)
 
 Goal: reduce reliance on global char similarity where it’s known to be misleading.

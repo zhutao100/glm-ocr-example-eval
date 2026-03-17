@@ -1,0 +1,12 @@
+example: page
+checks:
+  - id: glue_strength_constant
+    type: contains
+    must_contain: "0.2\\mathrm{N} / \\mathrm{mm}^{2}"
+    alternatives:
+      - "0.2\\mathrm{N/mm^2}"
+      - "0.2\\mathrm{N}/\\mathrm{mm}^{2}"
+      - "0.2 N/mm^2"
+      - "0.2N/mm^2"
+    severity: critical
+    rationale: "Guard the key constant/unit (semantic correctness over char similarity)."

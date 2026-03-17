@@ -68,7 +68,7 @@ def evaluate_rules(
         check_id = str(check.get("id", "unnamed"))
         check_type = str(check.get("type", "unknown"))
         severity = str(check.get("severity", "warn")).lower()
-        if severity not in {"warn", "error"}:
+        if severity not in {"warn", "error", "minor", "major", "critical"}:
             severity = "warn"
         status = "pass"
         message = ""

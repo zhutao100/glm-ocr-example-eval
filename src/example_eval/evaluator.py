@@ -83,11 +83,26 @@ def _read_text_with_reason(path: Path) -> tuple[str | None, str | None]:
         return None, f"read error: {exc}"
 
 
-def _rule_pass_rate(rule_results: list[Any]) -> float | None:
+def _rule_pass_rate(rule_results: list[Any], *, severity_weights: dict[str, Any]) -> float | None:
     if not rule_results:
         return None
-    passed = sum(1 for result in rule_results if result.status == "pass")
-    return passed / len(rule_results)
+    default_weight = float(severity_weights.get("warn", 1.0))
+    passed_weight = 0.0
+    total_weight = 0.0
+    for result in rule_results:
+        raw_weight = severity_weights.get(getattr(result, "severity", "warn"), default_weight)
+        try:
+            weight = float(raw_weight)
+        except (TypeError, ValueError):
+            weight = default_weight
+        if weight <= 0:
+            continue
+        total_weight += weight
+        if result.status == "pass":
+            passed_weight += weight
+    if total_weight <= 0:
+        return None
+    return passed_weight / total_weight
 
 
 def _page_texts_from_json(path: Path) -> list[str] | None:
@@ -355,8 +370,11 @@ def evaluate_repo(
         reference_rule_results = evaluate_rules(reference_md, rules, page_texts=reference_page_texts) if rules else []
 
         final_dimensions, final_overall = _finalize_dimensions(parity, result_to_golden, reference_to_golden, policy)
-        result_rule_rate = _rule_pass_rate(rule_results)
-        reference_rule_rate = _rule_pass_rate(reference_rule_results)
+        severity_weights = policy.get("rule_adjudication", {}).get("severity_weights") or {}
+        if not isinstance(severity_weights, dict):
+            severity_weights = {}
+        result_rule_rate = _rule_pass_rate(rule_results, severity_weights=severity_weights)
+        reference_rule_rate = _rule_pass_rate(reference_rule_results, severity_weights=severity_weights)
         if final_overall is not None and result_rule_rate is not None and reference_rule_rate is not None:
             rule_strength = float(policy.get("rule_adjudication", {}).get("strength", 0.05))
             final_overall = max(0.0, min(1.0, final_overall + rule_strength * (result_rule_rate - reference_rule_rate)))

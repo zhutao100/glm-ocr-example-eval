@@ -1,0 +1,14 @@
+example: paper
+checks:
+  - id: not_divisible_by_Q
+    type: contains
+    must_contain: "not divisible by Q"
+    severity: critical
+    rationale: "Guard against Q/O semantic corruption (common OCR failure mode)."
+  - id: laplacian_operator
+    type: contains
+    must_contain: "\\nabla^ {2}"
+    alternatives:
+      - "\\nabla^{2}"
+    severity: major
+    rationale: "Ensure basic math operator structure survives."

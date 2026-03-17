@@ -1,0 +1,15 @@
+example: code
+checks:
+  - id: local_jndi_name_tag
+    type: contains
+    must_contain: "<local-jndi-name>AddressHomeLocal</local-jndi-name>"
+    severity: critical
+    rationale: "Tag-name corruption here is semantically dangerous in XML descriptors."
+  - id: weblogic_rdbms_bean_tag
+    type: contains
+    must_contain: "<weblogic-rdbms-bean>"
+    severity: major
+  - id: key_cache_size_value
+    type: contains
+    must_contain: "<key-cache-size>10</key-cache-size>"
+    severity: major

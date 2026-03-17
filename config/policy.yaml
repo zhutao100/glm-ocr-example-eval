@@ -33,6 +33,12 @@ golden_aliases:
 
 rule_adjudication:
   strength: 0.05
+  severity_weights:
+    warn: 1.0
+    minor: 1.0
+    major: 2.0
+    critical: 3.0
+    error: 3.0
 
 json_structure:
   bbox_tolerance: 15

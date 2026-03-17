@@ -40,6 +40,13 @@ DEFAULT_POLICY: dict[str, Any] = {
     "golden_aliases": {},
     "rule_adjudication": {
         "strength": 0.05,
+        "severity_weights": {
+            "warn": 1.0,
+            "minor": 1.0,
+            "major": 2.0,
+            "critical": 3.0,
+            "error": 3.0,
+        },
     },
     "json_structure": {
         "bbox_tolerance": 15,
@@ -141,6 +148,8 @@ def _validate_policy(policy: dict[str, Any]) -> None:
     strength = _require_number(rule_adj.get("strength", 0.05), path="rule_adjudication.strength")
     if strength < 0:
         raise ExampleEvalError("Policy field rule_adjudication.strength must be non-negative.")
+    if rule_adj.get("severity_weights") is not None:
+        _validate_weight_mapping(rule_adj, path="severity_weights")
 
     json_policy = _require_mapping(policy.get("json_structure", {}), path="json_structure")
     bbox_tolerance = json_policy.get("bbox_tolerance", 15)
