@@ -40,3 +40,4 @@ json_structure:
 
 report:
   fail_under: null
+  inflation_warn_threshold: 0.15

@@ -299,8 +299,18 @@ def evaluate_repo(
         configured = policy.get("report", {}).get("fail_under")
         effective_fail_under = float(configured) if configured is not None else None
 
+    inflation_warn_threshold = policy.get("report", {}).get("inflation_warn_threshold")
+    effective_inflation_warn_threshold = (
+        float(inflation_warn_threshold) if inflation_warn_threshold is not None else None
+    )
+
     output_root = out_dir or (repo_root / ".build" / "example_eval")
-    write_reports(output_root, evaluations, fail_under=effective_fail_under)
+    write_reports(
+        output_root,
+        evaluations,
+        fail_under=effective_fail_under,
+        inflation_warn_threshold=effective_inflation_warn_threshold,
+    )
 
     should_fail = False
     if effective_fail_under is not None:

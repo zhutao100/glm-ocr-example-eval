@@ -52,6 +52,7 @@ DEFAULT_POLICY: dict[str, Any] = {
     },
     "report": {
         "fail_under": None,
+        "inflation_warn_threshold": 0.15,
     },
 }
 
@@ -126,6 +127,19 @@ def _validate_policy(policy: dict[str, Any]) -> None:
     json_weights = json_policy.get("weights", {})
     if json_weights is not None:
         _validate_weight_mapping(json_policy, path="weights")
+
+    report = _require_mapping(policy.get("report", {}), path="report")
+    fail_under = report.get("fail_under")
+    if fail_under is not None:
+        fail_value = _require_number(fail_under, path="report.fail_under")
+        if not (0.0 <= fail_value <= 1.0):
+            raise ExampleEvalError("Policy field report.fail_under must be within [0, 1].")
+
+    inflation_warn_threshold = report.get("inflation_warn_threshold", 0.15)
+    if inflation_warn_threshold is not None:
+        warn_value = _require_number(inflation_warn_threshold, path="report.inflation_warn_threshold")
+        if not (0.0 <= warn_value <= 1.0):
+            raise ExampleEvalError("Policy field report.inflation_warn_threshold must be within [0, 1].")
 
 
 def load_policy(path: Path | None) -> dict[str, Any]:

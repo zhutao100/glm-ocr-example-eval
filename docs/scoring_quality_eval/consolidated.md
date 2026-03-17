@@ -143,6 +143,16 @@ Goal: remove “quality vs parity” confusion without changing the existing par
 - Document these meanings prominently in `README.md` and `summary.md`:
   - “Use parity/final for regression; use quality for absolute OCR usefulness.”
 
+Status / decisions (implemented in this repo):
+
+- Reports now include:
+  - `quality_overall = result_to_golden.overall if available else parity.overall`
+  - `final_minus_quality = final_overall - quality_overall` (when both are available)
+- Inflation warnings:
+  - emitted when `final_minus_quality >= report.inflation_warn_threshold`
+  - default threshold: `0.15` (configurable via `config/policy.yaml`)
+- Reporting-only change: no scoring contract changes in Phase 0.
+
 ### Phase 1 — plug the biggest baseline holes (medium)
 
 Goal: make golden adjudication apply to more than just text similarity.

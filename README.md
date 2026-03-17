@@ -21,9 +21,16 @@ The scorer produces three primary dimensions per example:
 It then computes:
 
 - **parity_overall**: `result` vs `reference_result`
-- **golden_result_overall**: `result` vs `golden_result`
+- **result_to_golden_overall**: `result` vs `golden_result`
 - **reference_to_golden_overall**: `reference_result` vs `golden_result`
-- **final_overall**: parity adjusted by whether the result is better or worse than upstream when judged against golden
+- **quality_overall** (derived): `result_to_golden_overall` when available; otherwise `parity_overall`
+- **final_overall**: parity-first score with a small golden correction
+- **final_minus_quality** (diagnostic): `final_overall - quality_overall` (high values usually mean upstream is also far from golden)
+
+Recommended usage:
+
+- use `parity_overall` / `final_overall` for regression detection against upstream reference
+- use `quality_overall` for absolute OCR usefulness when a golden baseline exists
 
 ## Quick start
 
