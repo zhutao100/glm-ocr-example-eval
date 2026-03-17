@@ -207,6 +207,17 @@ Goal: reduce reliance on global char similarity where it’s known to be mislead
   - LaTeX token fidelity for `$...$` / `$$...$$`
   - stricter code-block fidelity (identifiers/tags, delimiter correctness, closing-tag balance)
 
+Status / decisions (implemented in this repo):
+
+- Block alignment:
+  - `text_fidelity` block pairing now uses DP sequence alignment instead of `zip_longest`.
+  - Alignment is driven by block-kind match bonus + coarse token Jaccard similarity (CJK chars + ASCII tokens + LaTeX commands + numerics).
+  - Tunables live in `config/policy.yaml:text_alignment` (`gap_penalty`, `kind_match_bonus`, blend weights).
+- Token-aware scoring (all continuous `[0, 1]`, policy-weighted):
+  - Numeric/unit token fidelity for digit-heavy blocks (`numeric_block_text_weights`).
+  - LaTeX token fidelity for formula blocks (`formula_block_text_weights`) and inline `$...$` segments (`inline_math_text_weights`).
+  - Code blocks now include identifier and XML-tag token F-scores (`code_block_text_weights.identifier_fscore` / `tag_fscore`).
+
 ### Phase 4 — calibration tests + end-to-end score snapshots (to prevent regressions)
 
 - Add tests in `tests/` for the observed failure modes:

@@ -30,8 +30,28 @@ DEFAULT_POLICY: dict[str, Any] = {
         "other": 1.00,
     },
     "code_block_text_weights": {
-        "exact_line_match": 0.70,
-        "char_fscore": 0.30,
+        "exact_line_match": 0.55,
+        "char_fscore": 0.25,
+        "identifier_fscore": 0.15,
+        "tag_fscore": 0.05,
+    },
+    "formula_block_text_weights": {
+        "char_fscore": 0.40,
+        "latex_token_fscore": 0.60,
+    },
+    "inline_math_text_weights": {
+        "char_fscore": 0.70,
+        "latex_token_fscore": 0.30,
+    },
+    "numeric_block_text_weights": {
+        "char_fscore": 0.65,
+        "token_fscore": 0.35,
+    },
+    "text_alignment": {
+        "aligned_weight": 0.35,
+        "global_weight": 0.65,
+        "gap_penalty": 0.40,
+        "kind_match_bonus": 0.20,
     },
     "golden_adjudication": {
         "strength": 0.25,
@@ -117,6 +137,25 @@ def _validate_policy(policy: dict[str, Any]) -> None:
     _validate_weight_mapping(policy, path="critical_structure_components")
     _validate_weight_mapping(policy, path="text_block_kind_weights")
     _validate_weight_mapping(policy, path="code_block_text_weights")
+    _validate_weight_mapping(policy, path="formula_block_text_weights")
+    _validate_weight_mapping(policy, path="inline_math_text_weights")
+    _validate_weight_mapping(policy, path="numeric_block_text_weights")
+
+    alignment = _require_mapping(policy.get("text_alignment", {}), path="text_alignment")
+    aligned_weight = _require_number(alignment.get("aligned_weight", 0.35), path="text_alignment.aligned_weight")
+    if aligned_weight < 0:
+        raise ExampleEvalError("Policy field text_alignment.aligned_weight must be non-negative.")
+    global_weight = _require_number(alignment.get("global_weight", 0.65), path="text_alignment.global_weight")
+    if global_weight < 0:
+        raise ExampleEvalError("Policy field text_alignment.global_weight must be non-negative.")
+    if aligned_weight + global_weight <= 0:
+        raise ExampleEvalError("Policy field text_alignment must have a positive total weight.")
+    gap_penalty = _require_number(alignment.get("gap_penalty", 0.40), path="text_alignment.gap_penalty")
+    if gap_penalty < 0:
+        raise ExampleEvalError("Policy field text_alignment.gap_penalty must be non-negative.")
+    kind_match_bonus = _require_number(alignment.get("kind_match_bonus", 0.20), path="text_alignment.kind_match_bonus")
+    if not (0.0 <= kind_match_bonus <= 1.0):
+        raise ExampleEvalError("Policy field text_alignment.kind_match_bonus must be within [0, 1].")
 
     golden = _require_mapping(policy.get("golden_adjudication", {}), path="golden_adjudication")
     strength = _require_number(golden.get("strength", 0.25), path="golden_adjudication.strength")

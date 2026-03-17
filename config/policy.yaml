@@ -19,8 +19,28 @@ text_block_kind_weights:
   other: 1.00
 
 code_block_text_weights:
-  exact_line_match: 0.70
-  char_fscore: 0.30
+  exact_line_match: 0.55
+  char_fscore: 0.25
+  identifier_fscore: 0.15
+  tag_fscore: 0.05
+
+formula_block_text_weights:
+  char_fscore: 0.40
+  latex_token_fscore: 0.60
+
+inline_math_text_weights:
+  char_fscore: 0.70
+  latex_token_fscore: 0.30
+
+numeric_block_text_weights:
+  char_fscore: 0.65
+  token_fscore: 0.35
+
+text_alignment:
+  aligned_weight: 0.35
+  global_weight: 0.65
+  gap_penalty: 0.40
+  kind_match_bonus: 0.20
 
 golden_adjudication:
   strength: 0.25
